@@ -1,0 +1,95 @@
+#!/bin/sh
+
+# this is the ofxOboe Build Script for FFMPEG with wav/mp3 only decoding / minimal libsize for 
+# For ofxOboe Wrapped for Oboe Google Oboe
+
+# modified original of script to build complete ffmpeg: https://gist.github.com/dturner/11fe5c8e420c2a73e15537274aafbd3a
+
+
+# ANDROID_NDK=""
+if [ -z "$ANDROID_NDK" ]; then
+  echo "Please set ANDROID_NDK to the Android NDK folder"
+  exit 1
+fi
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+#Change to your local machine's architecture
+HOST_OS_ARCH=darwin-x86_64
+
+function configure_ffmpeg {
+
+  ABI=$1
+  PLATFORM_VERSION=$2
+  TOOLCHAIN_PATH=$ANDROID_NDK/toolchains/llvm/prebuilt/${HOST_OS_ARCH}/bin
+  local STRIP_COMMAND
+
+  # Determine the architecture specific options to use
+  case ${ABI} in
+  armeabi-v7a)
+    TOOLCHAIN_PREFIX=armv7a-linux-androideabi
+    STRIP_COMMAND=arm-linux-androideabi-strip
+    ARCH=armv7-a
+    ;;
+  arm64-v8a)
+    TOOLCHAIN_PREFIX=aarch64-linux-android
+    ARCH=aarch64
+    ;;
+  x86)
+    TOOLCHAIN_PREFIX=i686-linux-android
+    ARCH=x86
+    EXTRA_CONFIG="--disable-asm"
+    ;;
+  x86_64)
+    TOOLCHAIN_PREFIX=x86_64-linux-android
+    ARCH=x86_64
+    EXTRA_CONFIG="--disable-asm"
+    ;;
+  esac
+
+  if [ -z ${STRIP_COMMAND} ]; then
+    STRIP_COMMAND=${TOOLCHAIN_PREFIX}-strip
+  fi
+
+  echo "Configuring FFmpeg build for ${ABI}"
+  echo "Toolchain path ${TOOLCHAIN_PATH}"
+  echo "Command prefix ${TOOLCHAIN_PREFIX}"
+  echo "Strip command ${STRIP_COMMAND}"
+
+#   echo "demuxers}"
+#   ${SCRIPT_DIR}/ffmpeg/configure --list-demuxers
+#   echo "demuxers}"
+#   ${SCRIPT_DIR}/ffmpeg/configure --list-muxers 
+#   echo "decoders"
+#   ${SCRIPT_DIR}/ffmpeg/configure --list-decoders
+#   echo "encoders"
+#   ${SCRIPT_DIR}/ffmpeg/configure --list-encoders 
+
+
+echo "Configuring:"
+  ${SCRIPT_DIR}/ffmpeg/configure --prefix=build/${ABI} --target-os=android --arch=${ARCH} --enable-cross-compile --cc=${TOOLCHAIN_PATH}/${TOOLCHAIN_PREFIX}${PLATFORM_VERSION}-clang --strip=${TOOLCHAIN_PATH}/${STRIP_COMMAND} --enable-small --disable-programs  --disable-doc --enable-shared --disable-static  --disable-everything --disable-network --disable-autodetect  --enable-decoder=mp3*,pcm* --enable-encoder=flac --enable-parser=mpegaudio --enable-demuxer=mp3,wav --enable-muxer=flac --enable-filter=aresample --enable-protocol=file --enable-muxer=wav --enable-demuxer=wav --enable-decoder=wavpack --enable-encoder=wavpack --enable-encoder=pcm_s16le  --enable-decoder=pcm_s16le ${EXTRA_CONFIG} 
+  # Disable all modules. To keep the library size to a minimum we will explicitly specify the modules to be built below.
+  # --enable-decoder=mp3 \ # Enable the MP3 decoder. For a list of supported decoders type ./configure --help.
+  # --enable-demuxer=mp3 # Enable the MP3 demuxer. For a list of supported demuxers type ./configure --help.
+  
+  return $?
+}
+
+function build_ffmpeg {
+
+  configure_ffmpeg $1 $2
+
+  if [ $? -eq 0 ]
+  then
+          make clean
+          make -j12
+          make install
+  else
+          echo "FFmpeg configuration failed, please check the error log."
+  fi
+}
+
+build_ffmpeg armeabi-v7a 16
+build_ffmpeg arm64-v8a 21
+build_ffmpeg x86 16
+build_ffmpeg x86_64 21
