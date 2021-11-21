@@ -1,0 +1,4 @@
+[submodule "FFmpeg"]
+	path = dependancy/ffmpeg
+	url = hgit://source.ffmpeg.org/ffmpeg.git
+	branch = release/4.4
